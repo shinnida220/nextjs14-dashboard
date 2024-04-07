@@ -50,7 +50,7 @@ export async function fetchLatestInvoices() {
       ORDER BY invoices.date DESC
       LIMIT 5`);
 
-    const latestInvoices = data.rows.map((invoice) => ({
+    const latestInvoices = data.rows.map((invoice: LatestInvoiceRaw) => ({
       ...invoice,
       amount: formatCurrency(invoice.amount),
     }));
@@ -175,7 +175,7 @@ export async function fetchInvoiceById(id: string) {
       amount: invoice.amount / 100,
     }));
 
-    return invoice[0];
+    return invoice[0] as InvoiceForm;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch invoice.');
