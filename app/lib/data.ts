@@ -1,11 +1,3 @@
-import { Client } from 'pg';
-
-const client = new Client({
-  connectionString: process.env.POSTGRES_URL,
-});
-
-await client.connect();
-
 import { unstable_noStore as noStore } from 'next/cache';
 import {
   CustomerField,
@@ -17,6 +9,7 @@ import {
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
+import dBClient from './db-client';
 
 export async function fetchRevenue() {
   // Add noStore() here to prevent the response from being cached.
@@ -28,9 +21,9 @@ export async function fetchRevenue() {
     // Don't do this in production :)
 
     // console.log('Fetching revenue data...');
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    // await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    const data = await client.query(`SELECT * FROM revenue`);
+    const data = await dBClient.query(`SELECT * FROM revenue`);
     // console.log('Data fetch completed after 3 seconds.');
 
     return data.rows as Revenue[];
@@ -42,9 +35,8 @@ export async function fetchRevenue() {
 
 export async function fetchLatestInvoices() {
   noStore();
-  await new Promise((resolve) => setTimeout(resolve, 5000));
   try {
-    const data = await client.query(`
+    const data = await dBClient.query(`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
@@ -64,14 +56,15 @@ export async function fetchLatestInvoices() {
 
 export async function fetchCardData() {
   noStore();
-  await new Promise((resolve) => setTimeout(resolve, 2000));
   try {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
-    const invoiceCountPromise = client.query(`SELECT COUNT(*) FROM invoices`);
-    const customerCountPromise = client.query(`SELECT COUNT(*) FROM customers`);
-    const invoiceStatusPromise = client.query(`SELECT
+    const invoiceCountPromise = dBClient.query(`SELECT COUNT(*) FROM invoices`);
+    const customerCountPromise = dBClient.query(
+      `SELECT COUNT(*) FROM customers`,
+    );
+    const invoiceStatusPromise = dBClient.query(`SELECT
          SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS "paid",
          SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
          FROM invoices`);
@@ -104,11 +97,12 @@ export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
 ) {
-  noStore();
+  //   noStore();
+  await new Promise((resolve) => setTimeout(resolve, 3000));
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
   try {
-    const invoices = await client.query(`
+    const invoices = await dBClient.query(`
       SELECT
         invoices.id,
         invoices.amount,
@@ -120,11 +114,11 @@ export async function fetchFilteredInvoices(
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+        customers.name ILIKE '${`%${query}%`}' OR
+        customers.email ILIKE '${`%${query}%`}' OR
+        invoices.amount::text ILIKE '${`%${query}%`}' OR
+        invoices.date::text ILIKE '${`%${query}%`}' OR
+        invoices.status ILIKE '${`%${query}%`}'
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `);
@@ -139,15 +133,15 @@ export async function fetchFilteredInvoices(
 export async function fetchInvoicesPages(query: string) {
   noStore();
   try {
-    const count = await client.query(`SELECT COUNT(*)
+    const count = await dBClient.query(`SELECT COUNT(*)
     FROM invoices
     JOIN customers ON invoices.customer_id = customers.id
     WHERE
-      customers.name ILIKE ${`%${query}%`} OR
-      customers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
+      customers.name ILIKE '${`%${query}%`}' OR
+      customers.email ILIKE '${`%${query}%`}' OR
+      invoices.amount::text ILIKE '${`%${query}%`}' OR
+      invoices.date::text ILIKE '${`%${query}%`}' OR
+      invoices.status ILIKE '${`%${query}%`}'
   `);
 
     const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
@@ -161,7 +155,7 @@ export async function fetchInvoicesPages(query: string) {
 export async function fetchInvoiceById(id: string) {
   noStore();
   try {
-    const data = await client.query(`
+    const data = await dBClient.query(`
       SELECT
         invoices.id,
         invoices.customer_id,
@@ -187,7 +181,7 @@ export async function fetchInvoiceById(id: string) {
 export async function fetchCustomers() {
   noStore();
   try {
-    const data = await client.query(`
+    const data = await dBClient.query(`
       SELECT
         id,
         name
@@ -206,7 +200,7 @@ export async function fetchCustomers() {
 export async function fetchFilteredCustomers(query: string) {
   noStore();
   try {
-    const data = await client.query(`
+    const data = await dBClient.query(`
 		SELECT
 		  customers.id,
 		  customers.name,
@@ -218,8 +212,8 @@ export async function fetchFilteredCustomers(query: string) {
 		FROM customers
 		LEFT JOIN invoices ON customers.id = invoices.customer_id
 		WHERE
-		  customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`}
+		  customers.name ILIKE '${`%${query}%`}' OR
+        customers.email ILIKE '${`%${query}%`}'
 		GROUP BY customers.id, customers.name, customers.email, customers.image_url
 		ORDER BY customers.name ASC
 	  `);
@@ -240,7 +234,7 @@ export async function fetchFilteredCustomers(query: string) {
 export async function getUser(email: string) {
   noStore();
   try {
-    const user = await client.query(
+    const user = await dBClient.query(
       `SELECT * FROM users WHERE email='${email}'`,
     );
     return user.rows[0] as User;
