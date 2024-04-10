@@ -155,6 +155,7 @@ export async function fetchInvoicesPages(query: string) {
 export async function fetchInvoiceById(id: string) {
   noStore();
   try {
+    // await new Promise((resolve) => setTimeout(resolve, 3000));
     const data = await dBClient.query(`
       SELECT
         invoices.id,
@@ -162,7 +163,7 @@ export async function fetchInvoiceById(id: string) {
         invoices.amount,
         invoices.status
       FROM invoices
-      WHERE invoices.id = ${id};
+      WHERE invoices.id = '${id}';
     `);
 
     const invoice = data.rows.map((invoice) => ({
