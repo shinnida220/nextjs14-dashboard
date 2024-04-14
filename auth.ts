@@ -62,7 +62,11 @@ async function login(email: string, password: string): Promise<string | null> {
 }
 
 async function loginWith2FA(token: string): Promise<string | null> {
+  'use server';
+  const session = await auth();
+  console.log({ session });
   try {
+    HttpClient.setAuthorization(session?.user?.accessToken as string);
     const response = await HttpClient.getAxiosInstance().post<ApiLoginResponse>(
       '/v1/auth/login-2fa',
       { token },
@@ -85,18 +89,6 @@ async function loginWith2FA(token: string): Promise<string | null> {
 
 export const { auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  //   callbacks: {
-  //     async signIn({ user, account, profile }) {
-  //       console.log({ from: 'callbacks', user, account, profile });
-  //       if (account?.provider !== 'credentials') {
-  //         return false;
-  //       }
-  //       const existingUser = await getProfile();
-  //       if (existingUser?.otpEnabled) {
-  //       }
-  //       return true;
-  //     },
-  //   },
   providers: [
     Credentials({
       type: 'credentials',
@@ -115,22 +107,35 @@ export const { auth, signIn, signOut } = NextAuth({
           // if (passwordsMatch) return user;
           try {
             const token = await login(email, password);
+            console.log({ token1: token });
             if (!token) return null;
 
             const decoded = decodeJwt(token);
+            console.log({ decoded });
             if (decoded?.id && decoded?.accountType) {
               HttpClient.setAuthorization(token);
-              const profileInfo = await getProfile();
-              return {
-                otpEnabled: decoded.otpEnabled,
-                ...(decoded.otpEnabled
-                  ? { otpVerified: decoded.otpVerified }
-                  : {}),
-                id: decoded.id,
-                accessToken: token,
-                accessTokenExpiry: decoded.exp,
-                ...(profileInfo ? profileInfo : {}),
-              } as ChargeUpUser;
+
+              if (decoded.otpEnabled) {
+                return {
+                  otpEnabled: decoded.otpEnabled,
+                  otpVerified: false,
+                  id: decoded.id,
+                  accessToken: token,
+                  accessTokenExpiry: decoded.exp,
+                } as ChargeUpUser;
+              } else {
+                const profileInfo = await getProfile();
+                return {
+                  otpEnabled: decoded.otpEnabled,
+                  ...(decoded.otpEnabled
+                    ? { otpVerified: decoded.otpVerified }
+                    : {}),
+                  id: decoded.id,
+                  accessToken: token,
+                  accessTokenExpiry: decoded.exp,
+                  ...(profileInfo ? profileInfo : {}),
+                } as ChargeUpUser;
+              }
             }
           } catch (err: any) {
             console.log({ error: err?.message });
@@ -144,11 +149,27 @@ export const { auth, signIn, signOut } = NextAuth({
     }),
 
     Credentials({
+      type: 'credentials',
       id: 'tfa-login',
       name: 'Two Factor Auth',
       async authorize(credentials): Promise<ChargeUpUser | null> {
+        function isCharNumber(c: string) {
+          return (
+            typeof c === 'string' && c.length === 1 && c >= '0' && c <= '9'
+          );
+        }
         const parsedCredentials = z
-          .object({ token: z.string().length(6) })
+          .object({
+            token: z
+              .string()
+              .length(6)
+              .refine(
+                (v) => {
+                  return v.split('').every((cv) => isCharNumber(cv));
+                },
+                { message: 'Invalid token' },
+              ),
+          })
           .safeParse(credentials);
 
         if (parsedCredentials.success) {
@@ -156,6 +177,7 @@ export const { auth, signIn, signOut } = NextAuth({
 
           try {
             const accessToken = await loginWith2FA(token);
+            console.log({ token1: accessToken });
             if (!accessToken) return null;
 
             const decoded = decodeJwt(accessToken);

@@ -153,3 +153,23 @@ export async function authenticate(
     throw error;
   }
 }
+
+export async function authenticateWithTFA(
+  prevState: string | undefined,
+  formData: FormData,
+) {
+  try {
+    await signIn('tfa-login', formData);
+  } catch (error) {
+    if (error instanceof AuthError) {
+      switch (error.type) {
+        case 'CredentialsSignin':
+          return 'Invalid 2FA Code.';
+        default:
+          return 'Something went wrong.';
+      }
+    }
+
+    throw error;
+  }
+}

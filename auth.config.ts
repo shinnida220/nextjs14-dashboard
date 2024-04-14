@@ -4,6 +4,7 @@ import { getProfile } from './auth';
 export const authConfig = {
   pages: {
     signIn: '/login',
+    newUser: '/register',
   },
   session: {
     maxAge: 3600,
@@ -21,14 +22,42 @@ export const authConfig = {
     // },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
-      const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
-      if (isOnDashboard) {
-        if (isLoggedIn) return true;
-        return false; // Redirect unauthenticated users to login page
-      } else if (isLoggedIn) {
-        return Response.redirect(new URL('/dashboard', nextUrl));
+      const route = nextUrl.pathname;
+      const publicRoutes = ['/'];
+      const authRoutes = ['/login', '/login-2fa', '/register'];
+      const authRoutesWhenLoggedIn = ['/login-2fa'];
+      if (isLoggedIn) {
+        // 2FA is enabled but not yet verified
+        if (auth.user.otpEnabled && !auth.user?.otpVerified) {
+          if (
+            publicRoutes.includes(route) ||
+            authRoutesWhenLoggedIn.includes(route)
+          ) {
+            return true;
+          }
+          return Response.redirect(new URL('/login-2fa', nextUrl));
+        } else if (auth.user.otpEnabled && auth.user?.otpVerified) {
+          if (route === '/login-2fa') {
+            return Response.redirect(new URL('/dashboard', nextUrl));
+          }
+          return true;
+        } else {
+          return true;
+        }
+      } else {
+        if (publicRoutes.includes(route) || authRoutes.includes(route)) {
+          return true;
+        }
+        return false;
       }
-      return true;
+      //   const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
+      //   if (isOnDashboard) {
+      //     if (isLoggedIn) return true;
+      //     return false; // Redirect unauthenticated users to login page
+      //   } else if (isLoggedIn) {
+      //     return Response.redirect(new URL('/dashboard', nextUrl));
+      //   }
+      //   return true;
     },
     jwt: ({ token, user, account, profile, isNewUser }) => {
       if (user) {

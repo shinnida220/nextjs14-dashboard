@@ -16,6 +16,10 @@ class AxiosSingleton {
     // Add request interceptor
     this.axiosInstance.interceptors.request.use(
       async (config: InternalAxiosRequestConfig) => {
+        console.log({
+          path: config.url,
+          headers: config.headers,
+        });
         return config;
       },
       (error: any) => {
