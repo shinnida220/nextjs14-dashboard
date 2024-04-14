@@ -1,4 +1,5 @@
 import { Revenue } from './definitions';
+import jwt, { DecodeOptions } from 'jsonwebtoken';
 
 export const formatCurrency = (amount: number) => {
   return (amount / 100).toLocaleString('en-US', {
@@ -66,4 +67,15 @@ export const generatePagination = (currentPage: number, totalPages: number) => {
     '...',
     totalPages,
   ];
+};
+
+interface DecodedToken {
+  [key: string]: any;
+}
+export const decodeJwt = (token: string): DecodedToken | null => {
+  const decoded = jwt.decode(token);
+  if (decoded) {
+    return decoded as DecodedToken;
+  }
+  return null;
 };

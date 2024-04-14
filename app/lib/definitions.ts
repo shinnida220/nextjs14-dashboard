@@ -86,3 +86,17 @@ export type InvoiceForm = {
   amount: number;
   status: 'pending' | 'paid';
 };
+
+export type ApiLoginResponse = {
+  access_token: string;
+  refresh_token?: string;
+};
+
+export type ApiUser = {
+  otpEnabled: boolean;
+  otpVerified?: boolean;
+  id: string;
+  accountType?: 'C';
+  accessToken: string;
+  accessTokenExpiry: number;
+};

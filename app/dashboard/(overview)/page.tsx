@@ -9,8 +9,18 @@ import {
   RevenueChartSkeleton,
 } from '@/app/ui/skeletons';
 import LatestInvoices from '@/app/ui/dashboard/latest-invoices';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Dashboard Overview',
+};
+
+import { auth } from '@/auth';
 
 export default async function Page() {
+  const session = await auth();
+  console.log({ session });
+
   return (
     <main>
       <h1 className={` mb-4 text-xl md:text-2xl`}>Dashboard</h1>
